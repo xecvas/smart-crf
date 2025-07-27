@@ -1,61 +1,68 @@
-# SmartCRF v1.0
+# SmartCRF v1.1
 
-SmartCRF is a desktop application built with PyQt6 that estimates the appropriate Constant Rate Factor (CRF) needed to encode video files near a desired target bitrate. It provides a simple interface to analyze video bitrates, predict CRF values, and log results — making it a handy utility for video processing workflows and bitrate normalization.
+SmartCRF is a desktop application built with PyQt6 that estimates the appropriate Constant Rate Factor (CRF) needed to encode video files close to a desired target bitrate. It provides a user-friendly interface to analyze video bitrates, suggest CRF values, and manage logs — making it a useful utility for video processing, quality targeting, and file normalization.
 
 ---
 
 ## 🚀 Features
 
 - ✅ Analyze video bitrate using `ffprobe`
-- ✅ Predict CRF values to approximate ideal bitrate
-- ✅ Rename files automatically with the predicted CRF value or mark as "skip"
-- ✅ Filterable and exportable logs with custom tag selection
+- ✅ Predict CRF values to approximate ideal bitrate using a logarithmic formula
+- ✅ Rename files with predicted CRF or mark them as `[SKIP]` if already within target
+- ✅ Real-time logs with tag-based filtering (`Processed`, `Skip`, `Error`, `Failed`)
+- ✅ Export logs based on custom filter selection
+- ✅ Responsive UI with real-time elapsed time display
 - ✅ Supports most common video formats
 - ✅ Cross-platform Python app using PyQt6
+- 🧪 **Planned support** for manual preset input and encoder setting analysis
 
 ---
 
 ## 🧠 How It Works
 
-1. **Bitrate Analysis**: For each video file in the selected folder, the app uses `ffprobe` to determine its current bitrate.
-2. **CRF Prediction**: If the bitrate is outside the user-defined target range, the app calculates a CRF value that will likely bring the encoded video bitrate closer to the ideal.
-3. **File Renaming**: Based on analysis:
-   - Files within the target range are marked as `[SKIP]`
-   - Files needing re-encoding are renamed with a `crf XX` suffix
-4. **Logging**: Every step is logged in real time and can be filtered or exported.
+1. **Bitrate Analysis**: Uses `ffprobe` to extract the bitrate of each video in a folder.
+2. **CRF Estimation**: For videos outside the target range (min/max), a CRF value is calculated to bring the encoded file closer to the ideal bitrate.
+3. **File Handling**:
+   - Files within range are marked as `[SKIP]`
+   - Others are renamed with a `crf XX` tag in the filename
+4. **Logging & Export**:
+   - Real-time log updates
+   - Filter by status and export log data as `.txt`
 
 ---
 
 ## 🧩 File Structure
 
 ### `main.py`
-- Main GUI logic using `PyQt6`
-- Provides input fields for folder selection, bitrate min/max, and result filtering
-- Handles worker threads for file processing
-- Contains the export log system with category checkboxes
+- GUI implementation using PyQt6
+- Input fields for folder selection, bitrate range, and result filters
+- Worker thread management for non-blocking processing
+- Log filtering, exporting, and timer UI updates
+- (Preparation for) Manual encoder preset input via text area
 
 ### `crf_calc.py`
-- Core logic for processing video files
-- Determines if files are within the target bitrate range
-- Calls CRF prediction logic and triggers file renaming
-- Reports progress to the GUI
+- Core processing logic for determining whether a file should be skipped or renamed
+- CRF estimation function using bitrate ratio
+- File renaming with safety checks and formatting
 
 ### `utils.py`
-- Utility functions:
-  - Bitrate extraction using `ffprobe`
-  - CRF estimation using a logarithmic ratio formula
-  - Filename cleanup and safe renaming
-  - Supported video extension list
+- Helper utilities:
+  - Run `ffprobe` and extract video bitrate
+  - Estimate CRF with logarithmic math
+  - Sanitize filenames
+  - Filter by supported video formats
 
 ---
 
 ## 📦 Requirements
 
-- Python 3.8+
-- [`ffprobe`](https://ffmpeg.org/download.html) (part of FFmpeg) must be installed and accessible in the system path.
+- **Python 3.8+**
+- [`ffprobe`](https://ffmpeg.org/download.html) must be installed and accessible in your system's `PATH`.
 
-### Python Dependencies:
-Install via pip:
+### Python Dependencies
+
+Install with pip:
+
 ```bash
 pip install PyQt6
 ```
