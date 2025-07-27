@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog, QVBoxLayout,
-    QLineEdit, QHBoxLayout, QTextBrowser, QMessageBox, QComboBox,
-    QCheckBox, QSizePolicy, QSpacerItem, QToolButton, QMenu, QDialog
+    QLineEdit, QHBoxLayout, QTextBrowser, QMessageBox, QComboBox, QTextEdit,
+    QCheckBox, QSizePolicy, QSpacerItem, QTextEdit, QDialog, QButtonGroup
 )
-from PyQt6.QtGui import QIcon, QAction
+from PyQt6.QtGui import QIcon, QAction, QTextOption
 from PyQt6.QtCore import QThread, pyqtSignal, QElapsedTimer, Qt
 import sys, os, datetime
 from crf_calc import process_videos, TARGET_MIN, TARGET_MAX, TARGET_IDEAL
@@ -11,14 +11,15 @@ from utils import VIDEO_EXTENSIONS, is_ffprobe_available
 
 class WorkerThread(QThread):
     progress = pyqtSignal(str)
-    finished = pyqtSignal()
     status_summary = pyqtSignal(dict)
+    finished = pyqtSignal()
 
-    def __init__(self, folder, target_bitrate, rename=True):
+    def __init__(self, folder, target_bitrate, rename=True, manual_preset_settings=None):
         super().__init__()
         self.folder = folder
         self.target_bitrate = target_bitrate
         self.rename = rename
+        self.manual_preset_settings = manual_preset_settings  # ← tambahkan ini
         self.stopped = False
         self.summary = {"Processed": 0, "Skip": 0, "Error": 0, "Failed": 0}
         self.initial_log = []
@@ -32,15 +33,23 @@ class WorkerThread(QThread):
             self.progress.emit(msg)
             if "[PROCESS]" in msg:
                 self.summary["Processed"] += 1
+                self.status_summary.emit(self.summary)
             elif "[SKIP]" in msg:
                 self.summary["Skip"] += 1
+                self.status_summary.emit(self.summary)
             elif "[ERROR]" in msg:
                 self.summary["Error"] += 1
+                self.status_summary.emit(self.summary)
             elif "[FAILED]" in msg:
                 self.summary["Failed"] += 1
+                self.status_summary.emit(self.summary)
 
-        process_videos(self.folder, self.target_bitrate, progress_callback=callback, rename=self.rename)
-        self.status_summary.emit(self.summary)
+        process_videos(
+            self.folder,
+            self.target_bitrate,
+            progress_callback=callback,
+            rename=self.rename
+        )
         self.finished.emit()
 
     def stop(self):
@@ -51,12 +60,24 @@ class CRFModernUI(QWidget):
         super().__init__()
         self.assets_dir = os.path.join(os.path.dirname(__file__), "assets")
         self.setWindowIcon(QIcon(os.path.join(self.assets_dir, "icon.ico")))
-        self.setWindowTitle("SmartCRF v1.0")
+        self.setWindowTitle("SmartCRF v1.1")
         self.setFixedSize(600, 600)
         self.setStyleSheet("font-size: 14px;")
         self.timer = QElapsedTimer()
         self.full_log = []
         self.current_summary = {}
+
+        self.manual_btn_layout = QHBoxLayout()
+        self.ok_btn = QPushButton("OK")
+        self.cancel_btn = QPushButton("Cancel")
+        self.ok_btn.clicked.connect(self.confirm_manual_input)
+        self.cancel_btn.clicked.connect(self.cancel_manual_input)
+        self.manual_btn_layout.addStretch()
+        self.manual_btn_layout.addWidget(self.ok_btn)
+        self.manual_btn_layout.addWidget(self.cancel_btn)
+        self.ok_btn.setVisible(False)
+        self.cancel_btn.setVisible(False)
+
         self.init_ui()
         self.check_ffprobe()
 
@@ -67,10 +88,9 @@ class CRFModernUI(QWidget):
             msg = '[WARNING] ffprobe is NOT found in your system.<br>[INFO] Download ffprobe from: <a href="https://ffmpeg.org/download.html">https://ffmpeg.org/download.html</a>'
         self.initial_log = [msg]
         self.apply_log_filter()
-
+    
     def init_ui(self):
         layout = QVBoxLayout()
-
         layout.addLayout(self.create_folder_section())
         layout.addSpacing(10)
         layout.addLayout(self.create_bitrate_section())
@@ -82,6 +102,9 @@ class CRFModernUI(QWidget):
         self.log_area.setReadOnly(True)
         self.log_area.setOpenExternalLinks(True)
         self.log_area.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self.log_area.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.log_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.log_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         layout.addWidget(self.log_area)
 
         self.setLayout(layout)
@@ -139,9 +162,50 @@ class CRFModernUI(QWidget):
         self.rename_checkbox = QCheckBox("Rename file after processing")
         self.rename_checkbox.setChecked(True)
 
+        # self.auto_checkbox = QCheckBox("Auto Detect")
+        # self.auto_checkbox.setChecked(True)
+        # self.manual_checkbox = QCheckBox("Manual Input")
+
+        # self.mode_group = QButtonGroup(self)
+        # self.mode_group.setExclusive(True)
+        # self.mode_group.addButton(self.auto_checkbox)
+        # self.mode_group.addButton(self.manual_checkbox)
+
+        # self.manual_input_box = QTextEdit()
+        # self.manual_input_box.setPlaceholderText(
+        #     "Example encoding settings as obtained via MediaInfo:\ncabac=1 / ref=10 / deblock=1:0:0 / analyse=0x3:0x113 / me=hex / subme=8 / psy=1 / psy_rd=0.00:0.00 / mixed_ref=1 / me_range=16 / chroma_me=1 / trellis=2 / 8x8dct=1 / cqm=0 / deadzone=21,11 / fast_pskip=1 / chroma_qp_offset=0 / threads=6 / lookahead_threads=1 / sliced_threads=0 / nr=0 / decimate=1 / interlaced=0 / bluray_compat=0 / constrained_intra=0 / bframes=5 / b_pyramid=2 / b_adapt=1 / b_bias=0 / direct=3 / weightb=1 / open_gop=0 / weightp=2 / keyint=250 / keyint_min=25 / scenecut=60 / intra_refresh=0 / rc=crf / mbtree=0 / crf=27.0 / qcomp=1.00 / qpmin=10 / qpmax=69 / qpstep=4 / ip_ratio=1.40 / pb_ratio=1.30 / aq=1:1.00"
+        # )
+        # self.manual_input_box.setVisible(False)
+
+        # self.ok_btn = QPushButton("OK")
+        # self.ok_btn.setFixedSize(70, 30)
+        # self.ok_btn.setVisible(False)
+        # self.ok_btn.clicked.connect(self.confirm_manual_input)
+
+        # self.manual_checkbox.toggled.connect(self.toggle_manual_ui)
+
         checkbox_layout = QHBoxLayout()
         checkbox_layout.addWidget(self.rename_checkbox)
-        return checkbox_layout
+        checkbox_layout.addStretch()
+        # checkbox_layout.addWidget(QLabel("Preset mode:"))
+        # checkbox_layout.addWidget(self.auto_checkbox)
+        # checkbox_layout.addWidget(self.manual_checkbox)
+
+        full_layout = QVBoxLayout()
+        full_layout.addLayout(checkbox_layout)
+
+        # Add manual input box and ok button inside a layout
+        # manual_layout = QVBoxLayout()
+        # manual_layout.addWidget(self.manual_input_box)
+
+        # ok_btn_layout = QHBoxLayout()
+        # ok_btn_layout.addStretch()
+        # ok_btn_layout.addWidget(self.ok_btn)
+        # manual_layout.addLayout(ok_btn_layout)
+
+        # full_layout.addLayout(manual_layout)
+
+        return full_layout
 
     def create_button_section(self):
         run_button = QPushButton("Start")
@@ -186,18 +250,54 @@ class CRFModernUI(QWidget):
 
         self.timer_label = QLabel("Elapsed Time : 00:00:00")
         self.timer_label.setStyleSheet("font-size: 12px;")
+        self.timer_label.setSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
 
         self.stats_label = QLabel("Processed : 0 | Skip : 0 | Error : 0 | Failed : 0")
         self.stats_label.setStyleSheet("font-size: 12px;")
         self.stats_label.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        self.stats_label.setAlignment(Qt.AlignmentFlag.AlignRight)
 
-        full_layout = QHBoxLayout()
-        full_layout.addLayout(filter_layout)
-        full_layout.addSpacerItem(QSpacerItem(29, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
-        full_layout.addWidget(self.timer_label)
-        full_layout.addSpacerItem(QSpacerItem(29, 0, QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum))
-        full_layout.addWidget(self.stats_label)
-        return full_layout
+        # Dummy spacer kanan untuk menyeimbangkan visual
+        self.right_dummy = QLabel()
+        self.right_dummy.setFixedWidth(200)  # Sesuaikan agar seimbang
+        self.right_dummy.setVisible(False)   # Tidak perlu ditampilkan
+
+        layout = QHBoxLayout()
+        layout.addLayout(filter_layout)
+        layout.addStretch(1)
+        layout.addWidget(self.timer_label)
+        layout.addStretch(1)
+        layout.addWidget(self.stats_label)
+        layout.addWidget(self.right_dummy)  # ini penyeimbang
+
+        return layout
+
+
+    
+    def toggle_manual_ui(self, checked):
+        self.manual_input_box.setVisible(checked)
+        self.ok_btn.setVisible(checked)
+        # Adjust manual_input_box height when visible to prevent shrinking other buttons
+        if checked:
+            self.manual_input_box.setFixedHeight(135)
+            self.manual_input_box.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        else:
+            self.manual_input_box.setFixedHeight(self.manual_input_box.sizeHint().height())
+            self.manual_input_box.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+
+    def confirm_manual_input(self):
+        if not self.manual_input_box.toPlainText().strip():
+            QMessageBox.warning(self, "Empty Input", "Please fill in encoding settings.")
+            return
+        self.manual_radio.setChecked(True)
+
+    def cancel_manual_input(self):
+        self.auto_radio.setChecked(True)
+        self.manual_input_box.setVisible(False)
+        self.ok_btn.setVisible(False)
+        self.cancel_btn.setVisible(False)
+
 
     def show_export_options(self):
         if not self.full_log:
@@ -243,10 +343,13 @@ class CRFModernUI(QWidget):
 
         def on_export():
             selected_tags = []
-            if cb_processed.isChecked(): selected_tags.append("[PROCESS]")
-            if cb_skip.isChecked(): selected_tags.append("[SKIP]")
-            if cb_error.isChecked(): selected_tags.append("[ERROR]")
-            if cb_failed.isChecked(): selected_tags.append("[FAILED]")
+            if cb_all.isChecked():
+                selected_tags = ["[PROCESS]", "[SKIP]", "[ERROR]", "[FAILED]"]
+            else:
+                if cb_processed.isChecked(): selected_tags.append("[PROCESS]")
+                if cb_skip.isChecked(): selected_tags.append("[SKIP]")
+                if cb_error.isChecked(): selected_tags.append("[ERROR]")
+                if cb_failed.isChecked(): selected_tags.append("[FAILED]")
 
             if not selected_tags:
                 QMessageBox.warning(self, "No Selection", "Please select at least one log type.")
@@ -281,7 +384,7 @@ class CRFModernUI(QWidget):
         QMessageBox.information(
             self,
             "Info",
-            """<b>SmartCRF v1.0</b><br>
+            """<b>SmartCRF v1.1</b><br>
             by Xecvas<br><br>
     This application is designed to help users estimate a suitable Constant Rate Factor (CRF) that would result in an encoded video bitrate close to a specified target range (minimum, maximum, and ideal).<br><br>
     It works by analyzing the original bitrate of video files and calculating the CRF value needed to approximate the ideal bitrate. Optionally, it can rename files based on the predicted CRF or mark them as 'skip' if they already fall within the target range.<br><br>
@@ -335,11 +438,27 @@ class CRFModernUI(QWidget):
         self.timer_label.setText("Elapsed Time : 00:00:00")
 
         self.timer.start()
-        self.worker = WorkerThread(folder, target_bitrate, rename=self.rename_checkbox.isChecked())
+        # Use QTimer to update elapsed time label every second
+        from PyQt6.QtCore import QTimer
+        self.elapsed_timer = QTimer()
+        self.elapsed_timer.timeout.connect(self.update_elapsed_time_label)
+        self.elapsed_timer.start(1000)  # update every 1000 ms
+
+        self.worker = WorkerThread(
+            folder,
+            target_bitrate,
+            rename=self.rename_checkbox.isChecked()
+        )
         self.worker.progress.connect(self.update_log)
         self.worker.status_summary.connect(self.update_summary)
         self.worker.finished.connect(self.finish_process)
         self.worker.start()
+
+    def update_elapsed_time_label(self):
+        elapsed = self.timer.elapsed() // 1000
+        h, rem = divmod(elapsed, 3600)
+        m, s = divmod(rem, 60)
+        self.timer_label.setText(f"Elapsed Time : {h:02d}:{m:02d}:{s:02d}")
 
     def update_summary(self, summary):
         self.current_summary = summary
@@ -379,7 +498,7 @@ class CRFModernUI(QWidget):
         for line in self.full_log:
             if filter_text == "All":
                 filtered.append(line)
-            elif filter_text == "Processed" and "[PROCESS]" in line:
+            elif filter_text == "Processed" and ("[PROCESS]" in line or "Process completed" in line):
                 filtered.append(line)
             elif filter_text == "Skip" and "[SKIP]" in line:
                 filtered.append(line)
@@ -394,6 +513,11 @@ class CRFModernUI(QWidget):
         h, rem = divmod(elapsed, 3600)
         m, s = divmod(rem, 60)
         self.timer_label.setText(f"Elapsed Time : {h:02d}:{m:02d}:{s:02d}")
+        if hasattr(self, 'elapsed_timer'):
+            self.elapsed_timer.stop()
+        # Append "Process completed" message to log and update display
+        self.full_log.append("Process completed")
+        self.apply_log_filter()
         QMessageBox.information(self, "Finished", "Process completed.")
 
 if __name__ == "__main__":
