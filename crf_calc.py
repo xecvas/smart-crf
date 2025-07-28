@@ -68,7 +68,10 @@ def process_videos(
 
         if TARGET_MIN <= bitrate_kbps <= TARGET_MAX:
             if rename:
-                rename_with_suffix(filepath, "skip")
+                try:
+                    rename_with_suffix(filepath, "skip")
+                except Exception as e:
+                    log_and_callback(f"{filename} | Failed to rename to skip: {e}", "error", progress_callback)
             # Log at INFO level with [SKIP] prefix in message
             log_and_callback(f"[SKIP] {filename} | Bitrate: {bitrate_kbps} kbps | Already in target range", "info", progress_callback)
             continue
@@ -79,7 +82,10 @@ def process_videos(
             continue
 
         if rename:
-            rename_with_suffix(filepath, f"Predicted CRF {crf}")
+            try:
+                rename_with_suffix(filepath, f"Predicted CRF {crf}")
+            except Exception as e:
+                log_and_callback(f"{filename} | Failed to rename with predicted CRF: {e}", "error", progress_callback)
 
         # Log at PROCESS level without [PROCESS] prefix in message
         log_and_callback(f"{filename} | Bitrate: {bitrate_kbps} kbps | Predicted CRF: {crf}", "process", progress_callback)
