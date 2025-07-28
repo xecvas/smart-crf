@@ -6,6 +6,9 @@ import math
 import logging
 from typing import Optional
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FFPROBE_PATH = os.path.join(BASE_DIR, 'bin', 'ffprobe.exe')
+
 logger = logging.getLogger(__name__)
 if not logger.hasHandlers():
     logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
@@ -22,33 +25,27 @@ def get_startupinfo() -> Optional[subprocess.STARTUPINFO]:
         return startupinfo
     return None
 
-_ffprobe_available_cache: Optional[bool] = None
-
-def is_ffprobe_available() -> bool:
-    global _ffprobe_available_cache
-    if _ffprobe_available_cache is not None:
-        return _ffprobe_available_cache
-    try:
-        subprocess.check_output(["ffprobe", "-version"], stderr=subprocess.DEVNULL, startupinfo=get_startupinfo())
-        _ffprobe_available_cache = True
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        _ffprobe_available_cache = False
-    return _ffprobe_available_cache
-
 def run_ffprobe_command(cmd: list) -> Optional[str]:
+    # Always use FFPROBE_PATH as the executable
+    if cmd[0] == "ffprobe":
+        cmd[0] = FFPROBE_PATH
     try:
         return subprocess.check_output(
             cmd,
             stderr=subprocess.DEVNULL,
-            startupinfo=get_startupinfo()
+            startupinfo=get_startupinfo(),
+            timeout=15
         ).decode().strip()
+    except subprocess.TimeoutExpired as e:
+        logger.error(f"ffprobe command timed out: {e}")
+        return None
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.error(f"ffprobe command failed: {e}")
         return None
 
 def get_video_bitrate_kbps(filepath: str) -> Optional[int]:
     cmd_stream = [
-        "ffprobe", "-v", "error",
+        FFPROBE_PATH, "-v", "error",
         "-select_streams", "v:0",
         "-show_entries", "stream=bit_rate",
         "-of", "default=noprint_wrappers=1:nokey=1",
@@ -58,7 +55,7 @@ def get_video_bitrate_kbps(filepath: str) -> Optional[int]:
 
     if not output or output == 'N/A':
         cmd_format = [
-            "ffprobe", "-v", "error",
+            FFPROBE_PATH, "-v", "error",
             "-show_entries", "format=bit_rate",
             "-of", "default=noprint_wrappers=1:nokey=1",
             filepath
