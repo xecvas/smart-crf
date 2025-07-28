@@ -1,4 +1,4 @@
-# SmartCRF v1.1
+# SmartCRF v1.2
 
 SmartCRF is a desktop application built with PyQt6 that estimates the appropriate Constant Rate Factor (CRF) needed to encode video files close to a desired target bitrate. It provides a user-friendly interface to analyze video bitrates, suggest CRF values, and manage logs — making it a useful utility for video processing, quality targeting, and file normalization.
 
