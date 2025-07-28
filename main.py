@@ -8,7 +8,7 @@ from PyQt6.QtCore import QThread, pyqtSignal, QElapsedTimer, Qt, QTimer
 import sys, os, datetime
 
 from crf_calc import process_videos, TARGET_MIN, TARGET_MAX, TARGET_IDEAL
-from utils import VIDEO_EXTENSIONS, is_ffprobe_available
+from utils import VIDEO_EXTENSIONS
 
 # Worker thread to handle background video processing
 class WorkerThread(QThread):
@@ -55,7 +55,7 @@ class WorkerThread(QThread):
 class SmartCRFApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("SmartCRF v1.2")
+        self.setWindowTitle("SmartCRF v1.3")
         self.setFixedSize(600, 600)
         self.setStyleSheet("font-size: 14px;")  # Revert to old font size
 
@@ -71,10 +71,7 @@ class SmartCRFApp(QWidget):
 
     # Check ffprobe existence on system
     def check_ffprobe(self):
-        msg = "[INFO] ffprobe is installed." if is_ffprobe_available() else (
-            '[WARNING] ffprobe NOT found.<br>[INFO] <a href="https://ffmpeg.org/download.html">Download ffprobe</a>'
-        )
-        self.initial_log = [msg]
+        self.initial_log = []
         self.apply_log_filter()
 
     # Build overall UI layout
@@ -186,7 +183,9 @@ class SmartCRFApp(QWidget):
         self.filter_combo.currentIndexChanged.connect(self.apply_log_filter)
 
         self.timer_label = QLabel("Elapsed Time : 00:00:00")
+        self.timer_label.setStyleSheet("font-size: 11.5px;")
         self.stats_label = QLabel("Processed : 0 | Skip : 0 | Error : 0 | Failed : 0")
+        self.stats_label.setStyleSheet("font-size: 11.5px;")
 
         layout = QHBoxLayout()
         layout.addWidget(QLabel("Log Filter:"))
@@ -267,7 +266,7 @@ class SmartCRFApp(QWidget):
     def stop_processing(self):
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.stop()
-            self.worker.terminate()
+            self.worker.wait()  # Wait for thread to finish properly
             QMessageBox.information(self, "Stopped", "Process stopped by user.")
 
     # Show export dialog with filters
@@ -377,7 +376,7 @@ class SmartCRFApp(QWidget):
         QMessageBox.information(
             self,
             "Info",
-            """<b>SmartCRF v1.2</b><br>
+            """<b>SmartCRF v1.3</b><br>
             by Xecvas<br><br>
     This application is designed to help users estimate a suitable Constant Rate Factor (CRF) that would result in an encoded video bitrate close to a specified target range (minimum, maximum, and ideal).<br><br>
     It works by analyzing the original bitrate of video files and calculating the CRF value needed to approximate the ideal bitrate. Optionally, it can rename files based on the predicted CRF or mark them as 'skip' if they already fall within the target range.<br><br>
