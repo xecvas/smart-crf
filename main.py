@@ -476,7 +476,7 @@ class SmartCRFApp(QWidget):
         QMessageBox.information(
             self,
             "Info",
-            """<b>SmartCRF v1.4</b><br>
+            """<b>SmartCRF v1.3</b><br>
             by Xecvas<br><br>
             This application is designed to help users estimate a suitable Constant Rate Factor (CRF) that would result in an encoded video bitrate close to a specified target range (minimum, maximum, and ideal).<br><br>
             It works by analyzing the original bitrate of video files and calculating the CRF value needed to approximate the ideal bitrate. Optionally, it can rename files based on the predicted CRF or mark them as 'skip' if they already fall within the target range.<br><br>
