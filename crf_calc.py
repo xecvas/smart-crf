@@ -79,6 +79,10 @@ def process_videos(
         return
 
     for filename in filenames:
+        if not filename.lower().endswith(VIDEO_EXTENSIONS):
+            # Skip non-video files
+            continue
+
         if stop_flag and stop_flag():
             if progress_callback:
                 progress_callback("[INFO] Stopped before processing remaining files.")
