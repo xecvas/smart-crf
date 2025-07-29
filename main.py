@@ -82,7 +82,7 @@ class SmartCRFApp(QWidget):
     """
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SmartCRF v1.4")
+        self.setWindowTitle("SmartCRF v1.3")
         self.setFixedSize(600, 600)
         self.setStyleSheet("font-size: 14px;")
 
