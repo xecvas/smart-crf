@@ -1,3 +1,15 @@
+"""
+Main application module for SmartCRF.
+
+This module contains the PyQt6 GUI application that allows users to select a folder of video files,
+set target bitrate ranges, and process videos to estimate suitable CRF values.
+"""
+
+import sys
+import os
+import datetime
+from typing import Optional
+
 from PyQt6.QtWidgets import (
     QApplication, QWidget, QLabel, QPushButton, QFileDialog, QVBoxLayout,
     QLineEdit, QHBoxLayout, QTextBrowser, QMessageBox, QComboBox, QTextEdit,
@@ -5,18 +17,21 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QIcon
 from PyQt6.QtCore import QThread, pyqtSignal, QElapsedTimer, Qt, QTimer
-import sys, os, datetime
 
 from crf_calc import process_videos, TARGET_MIN, TARGET_MAX, TARGET_IDEAL
-from utils import VIDEO_EXTENSIONS
 
-# Worker thread to handle background video processing
+
 class WorkerThread(QThread):
+    """
+    Worker thread to handle background video processing.
+
+    Emits signals to update progress, status summary, and completion.
+    """
     progress = pyqtSignal(str)
     status_summary = pyqtSignal(dict)
     finished = pyqtSignal()
 
-    def __init__(self, folder, target_bitrate, rename=True):
+    def __init__(self, folder: str, target_bitrate: int, rename: bool = True) -> None:
         super().__init__()
         self.folder = folder
         self.target_bitrate = target_bitrate
@@ -24,13 +39,16 @@ class WorkerThread(QThread):
         self.stopped = False
         self.summary = {"Processed": 0, "Skip": 0, "Error": 0, "Failed": 0}
 
-    def run(self):
-        def callback(msg):
+    def run(self) -> None:
+        """
+        Run the video processing in a separate thread.
+        """
+        def callback(msg: str) -> None:
             if self.stopped:
                 return
             self.progress.emit(msg)
-            # Proper status detection for accurate counters
-            if "[PROCESS]" in msg:
+            # Update counters based on message tags
+            if "[PROCESSED]" in msg:
                 self.summary["Processed"] += 1
             elif "[SKIP]" in msg:
                 self.summary["Skip"] += 1
@@ -44,38 +62,53 @@ class WorkerThread(QThread):
             self.folder,
             self.target_bitrate,
             progress_callback=callback,
-            rename=self.rename
+            rename=self.rename,
+            stop_flag=lambda: self.stopped
         )
         self.finished.emit()
 
-    def stop(self):
+    def stop(self) -> None:
+        """
+        Signal the thread to stop processing.
+        """
         self.stopped = True
 
-# Main application class
+
 class SmartCRFApp(QWidget):
-    def __init__(self):
+    """
+    Main application window for SmartCRF.
+
+    Provides UI for folder selection, bitrate input, processing control, and log display.
+    """
+    def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("SmartCRF v1.3")
+        self.setWindowTitle("SmartCRF v1.4")
         self.setFixedSize(600, 600)
-        self.setStyleSheet("font-size: 14px;")  # Revert to old font size
+        self.setStyleSheet("font-size: 14px;")
 
         self.assets_dir = os.path.join(os.path.dirname(__file__), "assets")
         self.setWindowIcon(QIcon(os.path.join(self.assets_dir, "icon.ico")))
 
         self.timer = QElapsedTimer()
-        self.full_log = []
-        self.current_summary = {}
+        self.full_log: list[str] = []
+        self.current_summary: dict[str, int] = {}
 
         self.init_ui()
         self.check_ffprobe()
 
-    # Check ffprobe existence on system
-    def check_ffprobe(self):
-        self.initial_log = []
+    def check_ffprobe(self) -> None:
+        """
+        Placeholder method for checking ffprobe existence.
+
+        Currently initializes initial_log and applies log filter.
+        """
+        self.initial_log: list[str] = []
         self.apply_log_filter()
 
-    # Build overall UI layout
-    def init_ui(self):
+    def init_ui(self) -> None:
+        """
+        Initialize the main UI layout and widgets.
+        """
         layout = QVBoxLayout()
         layout.addLayout(self.create_folder_section())
         layout.addLayout(self.create_bitrate_section())
@@ -91,8 +124,10 @@ class SmartCRFApp(QWidget):
 
         self.setLayout(layout)
 
-    # UI: folder selection
-    def create_folder_section(self):
+    def create_folder_section(self) -> QVBoxLayout:
+        """
+        Create the folder selection UI section.
+        """
         label = QLabel("\U0001F4C1 Video Folder")
         self.folder_input = QLineEdit()
         self.folder_input.setPlaceholderText("Select folder with video files...")
@@ -104,7 +139,7 @@ class SmartCRFApp(QWidget):
         info_button.clicked.connect(self.show_info)
 
         browse_btn = QPushButton("Browse")
-        browse_btn.setMinimumWidth(80)  # Make browse button larger like before
+        browse_btn.setMinimumWidth(80)
         browse_btn.clicked.connect(self.select_folder)
 
         top = QHBoxLayout()
@@ -121,8 +156,10 @@ class SmartCRFApp(QWidget):
         box.addLayout(bottom)
         return box
 
-    # UI: bitrate inputs
-    def create_bitrate_section(self):
+    def create_bitrate_section(self) -> QHBoxLayout:
+        """
+        Create the bitrate input UI section.
+        """
         self.min_input = QLineEdit(str(TARGET_MIN))
         self.max_input = QLineEdit(str(TARGET_MAX))
         self.ideal_output = QLineEdit(str(TARGET_IDEAL))
@@ -140,19 +177,28 @@ class SmartCRFApp(QWidget):
         layout.addWidget(self.ideal_output)
         return layout
 
-    # UI: checkbox section
-    def create_checkbox_section(self):
+    def create_checkbox_section(self) -> QVBoxLayout:
+        """
+        Create the checkbox UI section for rename and sound options.
+        """
         self.rename_checkbox = QCheckBox("Rename file after processing")
         self.rename_checkbox.setChecked(True)
+        self.sound_checkbox = QCheckBox("Enable sound notification")
+        self.sound_checkbox.setChecked(False)
+
         layout = QHBoxLayout()
         layout.addWidget(self.rename_checkbox)
+        layout.addWidget(self.sound_checkbox)
         layout.addStretch()
+
         box = QVBoxLayout()
         box.addLayout(layout)
         return box
 
-    # UI: run / stop / export
-    def create_button_section(self):
+    def create_button_section(self) -> QHBoxLayout:
+        """
+        Create the start, stop, and export buttons UI section.
+        """
         start_btn = QPushButton("Start")
         start_btn.setIcon(QIcon(os.path.join(self.assets_dir, "start.png")))
         start_btn.clicked.connect(self.start_processing)
@@ -165,7 +211,7 @@ class SmartCRFApp(QWidget):
         export_btn.setIcon(QIcon(os.path.join(self.assets_dir, "export.png")))
         export_btn.clicked.connect(self.show_export_options)
 
-        for btn in [start_btn, stop_btn, export_btn]:
+        for btn in (start_btn, stop_btn, export_btn):
             btn.setMinimumHeight(32)
             btn.setStyleSheet("padding: 10px;")
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -176,8 +222,10 @@ class SmartCRFApp(QWidget):
         layout.addWidget(export_btn)
         return layout
 
-    # UI: filter section and timer
-    def create_filter_section(self):
+    def create_filter_section(self) -> QHBoxLayout:
+        """
+        Create the log filter combo box and status labels UI section.
+        """
         self.filter_combo = QComboBox()
         self.filter_combo.addItems(["All", "Processed", "Skip", "Error", "Failed"])
         self.filter_combo.currentIndexChanged.connect(self.apply_log_filter)
@@ -196,8 +244,10 @@ class SmartCRFApp(QWidget):
         layout.addWidget(self.stats_label)
         return layout
 
-    # Live update ideal bitrate
-    def update_ideal(self):
+    def update_ideal(self) -> None:
+        """
+        Update the ideal bitrate display based on min and max inputs.
+        """
         try:
             min_val = int(self.min_input.text())
             max_val = int(self.max_input.text())
@@ -208,14 +258,18 @@ class SmartCRFApp(QWidget):
         except ValueError:
             self.ideal_output.clear()
 
-    # Folder browser
-    def select_folder(self):
+    def select_folder(self) -> None:
+        """
+        Open a folder selection dialog and set the folder input.
+        """
         folder = QFileDialog.getExistingDirectory(self, "Select Video Folder")
         if folder:
             self.folder_input.setText(folder)
 
-    # Start processing thread
-    def start_processing(self):
+    def start_processing(self) -> None:
+        """
+        Start the video processing in a background thread.
+        """
         folder = self.folder_input.text().strip()
         if not os.path.isdir(folder):
             QMessageBox.warning(self, "Invalid Folder", "Please select a valid folder.")
@@ -248,29 +302,37 @@ class SmartCRFApp(QWidget):
         self.worker.finished.connect(self.finish_process)
         self.worker.start()
 
-    # Timer update
-    def update_elapsed_time_label(self):
+    def update_elapsed_time_label(self) -> None:
+        """
+        Update the elapsed time label every second.
+        """
         elapsed = self.timer.elapsed() // 1000
         h, rem = divmod(elapsed, 3600)
         m, s = divmod(rem, 60)
         self.timer_label.setText(f"Elapsed Time : {h:02d}:{m:02d}:{s:02d}")
 
-    # Summary label update
-    def update_summary(self, summary):
+    def update_summary(self, summary: dict[str, int]) -> None:
+        """
+        Update the summary label with current processing statistics.
+        """
         self.current_summary = summary
         self.stats_label.setText(
             f"Processed : {summary['Processed']} | Skip : {summary['Skip']} | Error : {summary['Error']} | Failed : {summary['Failed']}"
         )
 
-    # Stop process button
-    def stop_processing(self):
+    def stop_processing(self) -> None:
+        """
+        Stop the background processing thread if running.
+        """
         if hasattr(self, 'worker') and self.worker.isRunning():
             self.worker.stop()
-            self.worker.wait()  # Wait for thread to finish properly
-            QMessageBox.information(self, "Stopped", "Process stopped by user.")
+            self.worker.wait()
+            self.update_log("[INFO] Stopped before processing remaining files.")
 
-    # Show export dialog with filters
-    def show_export_options(self):
+    def show_export_options(self) -> None:
+        """
+        Show a dialog to select log export filters and export the filtered log.
+        """
         if not self.full_log:
             QMessageBox.information(self, "Empty", "No log to save yet.")
             return
@@ -287,7 +349,7 @@ class SmartCRFApp(QWidget):
         cb_failed = QCheckBox("Failed")
         cb_all.setChecked(True)
 
-        def toggle_all(state):
+        def toggle_all(state: int) -> None:
             checked = state == Qt.CheckState.Checked
             cb_processed.setChecked(checked)
             cb_skip.setChecked(checked)
@@ -305,15 +367,19 @@ class SmartCRFApp(QWidget):
         btn_export = QPushButton("Export")
         btn_cancel = QPushButton("Cancel")
 
-        def on_export():
+        def on_export() -> None:
             tags = []
             if cb_all.isChecked():
-                tags = ["[PROCESS]", "[SKIP]", "[ERROR]", "[FAILED]"]
+                tags = ["[PROCESSED]", "[SKIP]", "[ERROR]", "[FAILED]"]
             else:
-                if cb_processed.isChecked(): tags.append("[PROCESS]")
-                if cb_skip.isChecked(): tags.append("[SKIP]")
-                if cb_error.isChecked(): tags.append("[ERROR]")
-                if cb_failed.isChecked(): tags.append("[FAILED]")
+                if cb_processed.isChecked():
+                    tags.append("[PROCESSED]")
+                if cb_skip.isChecked():
+                    tags.append("[SKIP]")
+                if cb_error.isChecked():
+                    tags.append("[ERROR]")
+                if cb_failed.isChecked():
+                    tags.append("[FAILED]")
 
             if not tags:
                 QMessageBox.warning(self, "No Selection", "Please select at least one log type.")
@@ -333,14 +399,20 @@ class SmartCRFApp(QWidget):
         dialog.setLayout(layout)
         dialog.exec()
 
-    # Export filtered log
-    def export_log_filtered(self, selected_tags):
+    def export_log_filtered(self, selected_tags: list[str]) -> None:
+        """
+        Export the filtered log entries to a user-selected file.
+        """
         filtered = [line for line in self.full_log if any(tag in line for tag in selected_tags)]
         if not filtered:
             QMessageBox.information(self, "No Matching Logs", "No log entries match the selected filters.")
             return
 
-        filepath, _ = QFileDialog.getSaveFileName(self, "Save Log", f"log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt")
+        filepath, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Log",
+            f"log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
         if filepath:
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write("==== Summary ====\n")
@@ -350,44 +422,72 @@ class SmartCRFApp(QWidget):
                 f.write("\n".join(filtered))
             QMessageBox.information(self, "Saved", f"Filtered log saved to: {filepath}")
 
-    # Handle incoming log messages
-    def update_log(self, message):
+    def update_log(self, message: str) -> None:
+        """
+        Handle incoming log messages, update log display, and play notification sounds if enabled.
+        """
         self.full_log.append(message)
         self.apply_log_filter()
         self.log_area.verticalScrollBar().setValue(self.log_area.verticalScrollBar().maximum())
 
-    # Filter log by category
-    def apply_log_filter(self):
+        if self.sound_checkbox.isChecked():
+            if any(tag in message for tag in ["[PROCESS]", "[ERROR]", "[SKIP]", "[FAILED]"]):
+                notif_path = os.path.join(os.path.dirname(__file__), "assets", "Kururinto.wav")
+                if os.path.exists(notif_path):
+                    import winsound
+                    winsound.PlaySound(notif_path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+
+    def apply_log_filter(self) -> None:
+        """
+        Filter the displayed log entries based on the selected filter category.
+        """
         filter_text = self.filter_combo.currentText()
         filtered = [line for line in self.full_log if filter_text == "All" or f"[{filter_text.upper()}]" in line]
         filtered = self.initial_log + filtered
         self.log_area.setHtml("<br>".join(filtered))
 
-    # End of processing routine
-    def finish_process(self):
+    def finish_process(self) -> None:
+        """
+        Finalize the processing, stop timers, update UI, and play completion sound if enabled.
+        """
         if hasattr(self, 'elapsed_timer'):
             self.elapsed_timer.stop()
+
+        if hasattr(self, 'worker') and getattr(self.worker, 'stopped', False):
+            # Process was stopped by user; do not show completion message
+            return
+
         self.full_log.append("Process completed")
         self.apply_log_filter()
-        QMessageBox.information(self, "Finished", "Process completed.")
 
-    # Info/about dialog
-    def show_info(self):
+        from PyQt6.QtWidgets import QApplication
+        QApplication.processEvents()
+
+        if self.sound_checkbox.isChecked():
+            notif_path = os.path.join(os.path.dirname(__file__), "assets", "notif.wav")
+            if os.path.exists(notif_path):
+                import winsound
+                winsound.PlaySound(notif_path, winsound.SND_FILENAME)
+
+    def show_info(self) -> None:
+        """
+        Show the about/info dialog for the application.
+        """
         QMessageBox.information(
             self,
             "Info",
-            """<b>SmartCRF v1.3</b><br>
+            """<b>SmartCRF v1.4</b><br>
             by Xecvas<br><br>
-    This application is designed to help users estimate a suitable Constant Rate Factor (CRF) that would result in an encoded video bitrate close to a specified target range (minimum, maximum, and ideal).<br><br>
-    It works by analyzing the original bitrate of video files and calculating the CRF value needed to approximate the ideal bitrate. Optionally, it can rename files based on the predicted CRF or mark them as 'skip' if they already fall within the target range.<br><br>
-    <b>Please note!</b><br>
-    that the actual bitrate of the output video after CRF encoding may not match the calculated target exactly. It is generally close, but results may vary due to encoding complexity,presets, and video content.<br><br>
-    <b>Disclaimer:</b><br>
-    This tool provides a CRF estimation only and does not perform actual video re-encoding.
-    """
+            This application is designed to help users estimate a suitable Constant Rate Factor (CRF) that would result in an encoded video bitrate close to a specified target range (minimum, maximum, and ideal).<br><br>
+            It works by analyzing the original bitrate of video files and calculating the CRF value needed to approximate the ideal bitrate. Optionally, it can rename files based on the predicted CRF or mark them as 'skip' if they already fall within the target range.<br><br>
+            <b>Please note!</b><br>
+            that the actual bitrate of the output video after CRF encoding may not match the calculated target exactly. It is generally close, but results may vary due to encoding complexity,presets, and video content.<br><br>
+            <b>Disclaimer:</b><br>
+            This tool provides a CRF estimation only and does not perform actual video re-encoding.
+            """
         )
 
-# App runner
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     win = SmartCRFApp()
