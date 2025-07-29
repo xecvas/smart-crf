@@ -6,7 +6,7 @@ SmartCRF is a desktop application built with PyQt6 that estimates the appropriat
 
 ## 🚀 Features
 
-- ✅ Analyze video bitrate using `ffprobe`
+- ✅ Analyze video bitrate using `mediainfo`
 - ✅ Predict CRF values to approximate ideal bitrate using a logarithmic formula
 - ✅ Rename files with predicted CRF or mark them as `[SKIP]` if already within target
 - ✅ Real-time logs with tag-based filtering (`Processed`, `Skip`, `Error`, `Failed`)
@@ -20,7 +20,7 @@ SmartCRF is a desktop application built with PyQt6 that estimates the appropriat
 
 ## 🧠 How It Works
 
-1. **Bitrate Analysis**: Uses `ffprobe` to extract the bitrate of each video in a folder.
+1. **Bitrate Analysis**: Uses `mediainfo` to extract the bitrate of each video in a folder.
 2. **CRF Estimation**: For videos outside the target range (min/max), a CRF value is calculated to bring the encoded file closer to the ideal bitrate.
 3. **File Handling**:
    - Files within range are marked as `[SKIP]`
@@ -47,34 +47,16 @@ SmartCRF is a desktop application built with PyQt6 that estimates the appropriat
 
 ### `utils.py`
 - Helper utilities:
-  - Run `ffprobe` and extract video bitrate
+  - Run `mediainfo` and extract video bitrate
   - Estimate CRF with logarithmic math
   - Sanitize filenames
   - Filter by supported video formats
 
 ---
 
-## 📦 Requirements
-
-- **Python 3.8+**
-- [`ffprobe`](https://ffmpeg.org/download.html) must be installed and accessible in your system's `PATH`.
-
-### Python Dependencies
-
-Install with pip:
-
-```bash
-pip install PyQt6
-```
-
----
-
 ## 🖥️ Usage
 
-1. Launch the application:
-   ```bash
-   python main.py
-   ```
+1. download realesed files from [here](https://github.com/xecvas/smart-crf/releases)
 2. Select a folder containing video files.
 3. Enter your desired `Min` and `Max` bitrate (in kbps).
 4. The app will automatically calculate the `Ideal` bitrate.
