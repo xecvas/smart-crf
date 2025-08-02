@@ -59,6 +59,7 @@ def process_videos(
     progress_callback: Optional[Callable[[str], None]] = None,
     stop_flag: Optional[Callable[[], bool]] = None,
     rename: bool = True,
+    round_crf: bool = True,
 ) -> None:
     """
     Analyze and optionally rename video files in a folder based on their bitrate.
@@ -104,7 +105,7 @@ def process_videos(
             log_and_callback(f"[SKIP] {filename} | Bitrate: {bitrate_kbps} kbps | Already in target range", "info", progress_callback)
             continue
 
-        crf = predict_crf(bitrate_kbps, target_bitrate_kbps)
+        crf = predict_crf(bitrate_kbps, target_bitrate_kbps, round_crf)
         if crf is None:
             log_and_callback(f"{filename} | Failed to predict CRF", "error", progress_callback)
             continue
