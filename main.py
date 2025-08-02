@@ -31,11 +31,12 @@ class WorkerThread(QThread):
     status_summary = pyqtSignal(dict)
     finished = pyqtSignal()
 
-    def __init__(self, folder: str, target_bitrate: int, rename: bool = True) -> None:
+    def __init__(self, folder: str, target_bitrate: int, rename: bool = True, round_crf: bool = True) -> None:
         super().__init__()
         self.folder = folder
         self.target_bitrate = target_bitrate
         self.rename = rename
+        self.round_crf = round_crf
         self.stopped = False
         self.summary = {"Processed": 0, "Skip": 0, "Error": 0, "Failed": 0}
 
@@ -63,6 +64,7 @@ class WorkerThread(QThread):
             self.target_bitrate,
             progress_callback=callback,
             rename=self.rename,
+            round_crf=self.round_crf,
             stop_flag=lambda: self.stopped
         )
         self.finished.emit()
@@ -185,10 +187,13 @@ class SmartCRFApp(QWidget):
         self.rename_checkbox.setChecked(True)
         self.sound_checkbox = QCheckBox("Enable sound notification")
         self.sound_checkbox.setChecked(False)
+        self.rounded_crf_checkbox = QCheckBox("Rounded CRF")
+        self.rounded_crf_checkbox.setChecked(True)
 
         layout = QHBoxLayout()
         layout.addWidget(self.rename_checkbox)
         layout.addWidget(self.sound_checkbox)
+        layout.addWidget(self.rounded_crf_checkbox)
         layout.addStretch()
 
         box = QVBoxLayout()
@@ -296,7 +301,7 @@ class SmartCRFApp(QWidget):
         self.elapsed_timer.timeout.connect(self.update_elapsed_time_label)
         self.elapsed_timer.start(1000)
 
-        self.worker = WorkerThread(folder, target_bitrate, rename=self.rename_checkbox.isChecked())
+        self.worker = WorkerThread(folder, target_bitrate, rename=self.rename_checkbox.isChecked(), round_crf=self.rounded_crf_checkbox.isChecked())
         self.worker.progress.connect(self.update_log)
         self.worker.status_summary.connect(self.update_summary)
         self.worker.finished.connect(self.finish_process)
