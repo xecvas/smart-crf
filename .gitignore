@@ -1,0 +1,25 @@
+# Ignore build artifacts
+dist/
+build/
+__pycache__/
+*.spec
+
+# Ignore virtual environments
+.venv/
+venv/
+
+# Ignore editor/IDE files
+.vscode/
+.idea/
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Log or temporary files
+*.log
+*.tmp
+
+# Ignore binaries
+/bin/
+*.exe
